@@ -214,3 +214,4 @@ offer_issued | manual_review | declined → signing → funded`.
 | [06-data-model.md](docs/06-data-model.md) | ER-диаграмма, решения по модели данных, миграция на PostgreSQL |
 | [07-test-scenarios.md](docs/07-test-scenarios.md) | Сквозные сценарии и список автотестов |
 | [presentation](docs/alfa-credit-cabinet-pitch.pptx) | Презентация решения для защиты |
+| [RELEASE.md](RELEASE.md) | Зафиксированная версия, состав поставки, commit hash |
