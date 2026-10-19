@@ -1,0 +1,25 @@
+services:
+  backend:
+    build: ./backend
+    container_name: alfacredit-backend
+    environment:
+      DATABASE_URL: sqlite:////app/data/credit_cabinet.db
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      ACCESS_TOKEN_TTL_HOURS: ${ACCESS_TOKEN_TTL_HOURS:-12}
+      DEMO_DELAY_SCALE: ${DEMO_DELAY_SCALE:-1.0}
+      SEED_ON_START: "true"
+      CORS_ORIGINS: ${CORS_ORIGINS:-*}
+    volumes:
+      - ./data:/app/data
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: alfacredit-frontend
+    depends_on:
+      - backend
+    ports:
+      - "8080:80"
+    restart: unless-stopped
