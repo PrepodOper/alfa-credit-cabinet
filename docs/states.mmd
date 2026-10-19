@@ -1,0 +1,22 @@
+stateDiagram-v2
+    [*] --> draft: клиент создаёт заявку
+    draft --> submitted: отправка (submit)
+    submitted --> validation: конвейер принимает заявку
+    validation --> scoring: данные полные
+    scoring --> declined: стоп-фактор / класс E
+    scoring --> manual_review: пограничный риск или крупная сумма
+    scoring --> offer_issued: авто-одобрение (класс A; B без ограничений)
+    manual_review --> offer_issued: андеррайтер одобрил / контрпредложение
+    manual_review --> info_requested: нужны уточнения
+    manual_review --> declined: отказ андеррайтера
+    info_requested --> client_info_provided: клиент ответил
+    client_info_provided --> offer_issued: андеррайтер одобрил
+    client_info_provided --> declined: отказ андеррайтера
+    offer_issued --> signing: клиент принял оферту
+    offer_issued --> declined: клиент отказался
+    offer_issued --> expired: истёк срок действия
+    signing --> signed: документы подписаны
+    signed --> funded: средства зачислены
+    declined --> [*]
+    expired --> [*]
+    funded --> [*]

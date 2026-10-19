@@ -1,0 +1,376 @@
+{
+  "info": {
+    "name": "Умный кредитный кабинет — API",
+    "description": "Коллекция запросов для проверки сквозного сценария кредитного конвейера.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000/api"
+    },
+    {
+      "key": "clientToken",
+      "value": ""
+    },
+    {
+      "key": "bankToken",
+      "value": ""
+    },
+    {
+      "key": "applicationId",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "01 · Авторизация клиента",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\": \"ivan@vesna.ru\", \"password\": \"demo1234\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const data = pm.response.json();",
+              "pm.collectionVariables.set('clientToken', data.token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 · Авторизация андеррайтера",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/auth/login",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "auth",
+            "login"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"email\": \"underwriter@alfabank.ru\", \"password\": \"demo1234\"}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const data = pm.response.json();",
+              "pm.collectionVariables.set('bankToken', data.token);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 · Каталог продуктов",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/products",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "products"
+          ]
+        }
+      }
+    },
+    {
+      "name": "04 · Предварительная проверка",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{clientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/products/working_capital/eligibility?amount=800000&term_months=12",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "products",
+            "working_capital",
+            "eligibility"
+          ],
+          "query": [
+            {
+              "key": "amount",
+              "value": "800000"
+            },
+            {
+              "key": "term_months",
+              "value": "12"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "05 · Создать и отправить заявку",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{clientToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/applications",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "applications"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"product_code\": \"working_capital\", \"amount\": 800000, \"term_months\": 12, \"purpose\": \"Закупка товара\", \"purpose_details\": \"Postman demo\", \"submit\": true}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "const data = pm.response.json();",
+              "pm.collectionVariables.set('applicationId', data.id);"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 · Карточка заявки (клиент)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{clientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/applications/{{applicationId}}",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "applications",
+            "{{applicationId}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "07 · Принять предложение",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{clientToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/applications/{{applicationId}}/offer/accept",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "applications",
+            "{{applicationId}}",
+            "offer",
+            "accept"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"accept\": true, \"comment\": \"\"}"
+        }
+      }
+    },
+    {
+      "name": "08 · Подписать документы и получить кредит",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{clientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/applications/{{applicationId}}/sign",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "applications",
+            "{{applicationId}}",
+            "sign"
+          ]
+        }
+      }
+    },
+    {
+      "name": "09 · Очередь андеррайтера",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bankToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/bank/tasks?tab=queue",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "bank",
+            "tasks"
+          ],
+          "query": [
+            {
+              "key": "tab",
+              "value": "queue"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "10 · Решение андеррайтера (контрпредложение)",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bankToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/bank/applications/{{applicationId}}/decision",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "bank",
+            "applications",
+            "{{applicationId}}",
+            "decision"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\"action\": \"counter_offer\", \"comment\": \"Снижаем сумму\", \"offer_amount\": 700000, \"offer_rate\": 20.5, \"offer_term_months\": 12}"
+        }
+      }
+    },
+    {
+      "name": "11 · Метрики конвейера",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{bankToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/bank/metrics",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "bank",
+            "metrics"
+          ]
+        }
+      }
+    },
+    {
+      "name": "12 · Персональная лента",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{clientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/news?limit=10",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "news"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "10"
+            }
+          ]
+        }
+      }
+    }
+  ]
+}
