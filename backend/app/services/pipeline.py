@@ -14,9 +14,15 @@ from .scoring import (annuity_payment, calculate_scoring, declined_reasons, requ
 from .workflow import add_event, move
 
 
-def _pause(seconds: float) -> None:
-    if settings.demo_delay_scale > 0:
-        time.sleep(seconds * settings.demo_delay_scale)
+def _stage(name: str) -> None:
+    """Пауза, имитирующая длительность этапа обработки.
+
+    Длительность берётся из профиля TIMING_PROFILE и умножается на DEMO_DELAY_SCALE,
+    поэтому на защите показ остаётся быстрым, а в «правдоподобном» режиме — реалистичным.
+    """
+    seconds = settings.stage_seconds.get(name, 0.0) * settings.demo_delay_scale
+    if seconds > 0:
+        time.sleep(seconds)
 
 
 def form_offer(
@@ -84,12 +90,12 @@ def process_application(db: Session, app: Application) -> Application:
     """
     from .registry import bki_snapshot, registry_snapshot
 
-    _pause(0.5)
+    _stage("validation")
     move(db, app, "validation", title="Проверка полноты и корректности данных",
          comment="Анкета заполнена, обязательные поля и параметры продукта проверены.")
     db.commit()
 
-    _pause(0.4)
+    _stage("enrichment")
     bki = bki_snapshot(app.company)
     registry = registry_snapshot(app.company)
     add_event(
@@ -100,7 +106,7 @@ def process_application(db: Session, app: Application) -> Application:
     )
     db.commit()
 
-    _pause(0.6)
+    _stage("scoring")
     move(db, app, "scoring", title="Скоринг и оценка кредитного риска",
          comment="Рассчитывается балльная оценка и риск-класс заявки.")
     db.commit()
@@ -120,7 +126,7 @@ def process_application(db: Session, app: Application) -> Application:
     )
     db.commit()
 
-    _pause(0.4)
+    _stage("decision")
     if result["decision"] == "declined":
         decline_application(db, app, declined_reasons(result), comment=result["explanation"])
         db.commit()

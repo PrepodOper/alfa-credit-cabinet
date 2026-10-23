@@ -28,6 +28,7 @@ const DOC_TYPES = [
 
 export default function ApplicationDetail() {
   const { id } = useParams();
+  const [timing, setTiming] = useState(null);
   const navigate = useNavigate();
   const toast = useToast();
   const [app, setApp] = useState(null);
@@ -97,6 +98,13 @@ export default function ApplicationDetail() {
     method: 'POST', body: { comment: infoText },
   }), 'Уточнения отправлены банку');
 
+  useEffect(() => {
+    // Профиль времени конвейера: в демо этапы ускорены — показываем это явно, а не скрываем.
+    api('/health', { auth: false })
+      .then((d) => setTiming({ profile: d.timing_profile, seconds: d.auto_branch_seconds }))
+      .catch(() => {});
+  }, []);
+
   const addDocument = () => act('doc', () => api(`/applications/${app.id}/documents`, {
     method: 'POST',
     body: { title: docTitle || 'Документ', doc_type: docType, filename: `${docType}_${app.number}.pdf`, size_kb: 240 },
@@ -128,6 +136,12 @@ export default function ApplicationDetail() {
           <p className="muted small mt-8">
             Заявка № {app.number} · создана {dateTime(app.created_at)} · {money(app.amount)} на {app.term_months} мес.
           </p>
+          {timing?.profile === 'demo' && (
+            <p className="tiny muted" style={{ marginTop: 4 }}>
+              <Icon name="clock" size={12} /> Демо-профиль: машинные этапы ускорены
+              {timing.seconds ? ` (≈${timing.seconds} с вместо ≈3 мин)` : ''} — состав этапов и проверок настоящий.
+            </p>
+          )}
         </div>
         <div className="row gap-8">
           <button className="btn btn-secondary btn-sm" onClick={() => load()}>

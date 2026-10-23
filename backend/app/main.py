@@ -40,7 +40,14 @@ app.include_router(company.router, prefix=api)
 
 @app.get("/api/health", tags=["system"])
 def health():
-    return {"status": "ok", "app": settings.app_name, "version": "1.0.0"}
+    return {
+        "status": "ok",
+        "app": settings.app_name,
+        "version": "1.0.0",
+        # Видно, что показан ускоренный демо-профиль, а не «мгновенный кредит».
+        "timing_profile": settings.timing_profile,
+        "auto_branch_seconds": round(settings.auto_branch_seconds * settings.demo_delay_scale, 1),
+    }
 
 
 @app.on_event("startup")

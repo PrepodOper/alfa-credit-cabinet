@@ -176,11 +176,20 @@ offer_issued | manual_review | declined → signing → funded`.
 | `DATABASE_URL` | `sqlite:///./data/credit_cabinet.db` | Строка подключения к БД |
 | `JWT_SECRET` | dev-значение | Секрет подписи токенов (заменить в проде) |
 | `ACCESS_TOKEN_TTL_HOURS` | `12` | Время жизни токена |
-| `DEMO_DELAY_SCALE` | `1.0` | Масштаб паузы между шагами конвейера (0 — без задержек) |
+| `TIMING_PROFILE` | `demo` | Профиль времени этапов: `demo` (~2 с) или `realistic` (~3 мин) |
+| `DEMO_DELAY_SCALE` | `1.0` | Множитель пауз конвейера (0 — без задержек, используется в CI) |
 | `OFFER_TTL_HOURS` | `168` | Срок действия предложения |
 | `SEED_ON_START` | `true` | Заполнять демо-данными при старте |
 | `CORS_ORIGINS` | `*` | Разрешённые origin |
 | `STATIC_DIR` | — | Каталог собранного фронтенда для раздачи из FastAPI |
+
+### Время обработки заявки
+
+Автоматическая ветка конвейера в демо-профиле занимает ~2 секунды, в профиле `realistic` — ~3 минуты;
+ручное рассмотрение и клиентские шаги не ускоряются. Длительности этапов — параметр конфигурации
+(`TIMING_PROFILE`, `DEMO_DELAY_SCALE`), текущий профиль виден в `GET /api/health`.
+Подробный разбор (таблица этапов, реальные ориентиры, как отвечать на вопрос «почему так быстро») —
+[`docs/08-timings.md`](docs/08-timings.md).
 
 ---
 
@@ -226,5 +235,6 @@ offer_issued | manual_review | declined → signing → funded`.
 | [05-api.md](docs/05-api.md) | Описание API, примеры запросов, коды ответов |
 | [06-data-model.md](docs/06-data-model.md) | ER-диаграмма, решения по модели данных, миграция на PostgreSQL |
 | [07-test-scenarios.md](docs/07-test-scenarios.md) | Сквозные сценарии и список автотестов |
+| [08-timings.md](docs/08-timings.md) | Время обработки: профили `demo`/`realistic`, реальные SLA, что ускорено и почему |
 | [presentation](docs/alfa-credit-cabinet-pitch.pptx) | Презентация решения для защиты |
 | [RELEASE.md](RELEASE.md) | Зафиксированная версия, состав поставки, commit hash |
