@@ -1,0 +1,58 @@
+# Единый контейнер для PaaS-хостингов (Amvera, Render, Koyeb, Railway).
+#
+# Зачем отдельный Dockerfile:
+#   docker-compose.yml — это ДВА контейнера (backend + nginx с фронтендом).
+#   Большинство бесплатных PaaS поднимают ОДИН контейнер, поэтому здесь фронтенд
+#   собирается и раздаётся тем же FastAPI (STATIC_DIR), что и в ./start.sh.
+#
+# Сборка:  docker build -f Dockerfile.allinone -t alfa-credit-cabinet .
+# Запуск:  docker run -p 8000:8000 -v alfa_data:/data alfa-credit-cabinet
+#          → http://localhost:8000
+
+# ---------------------------------------------------------------- 1. frontend
+FROM node:20-alpine AS frontend
+
+WORKDIR /web
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY frontend/ ./
+RUN npm run build
+
+# ---------------------------------------------------------------- 2. backend
+FROM python:3.12-slim
+
+# Порты: Amvera/PaaS обычно задают PORT сами, значение ниже — по умолчанию.
+# FastAPI раздаёт собранный фронтенд (SPA + /assets) по STATIC_DIR.
+# SQLite лежит в постоянном хранилище: обратите внимание на ЧЕТЫРЕ слэша —
+# sqlite:////data/... означает абсолютный путь /data/...
+# SEED_ON_START создаёт синтетические данные при первом старте (на существующей БД — нет).
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PORT=8000 \
+    STATIC_DIR=/app/static \
+    DATABASE_URL=sqlite:////data/credit_cabinet.db \
+    SEED_ON_START=true \
+    TIMING_PROFILE=demo \
+    DEMO_DELAY_SCALE=1.0 \
+    CORS_ORIGINS=*
+
+WORKDIR /app
+
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/app ./app
+COPY --from=frontend /web/dist ./static
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+# Каталог постоянного хранилища. На PaaS сюда монтируется диск платформы,
+# локально это просто папка (или docker volume).
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh && mkdir -p /data
+
+EXPOSE 8000
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD python -c "import os,urllib.request,sys; port=os.getenv('PORT','8000'); sys.exit(0 if urllib.request.urlopen(f'http://127.0.0.1:{port}/api/health').status==200 else 1)"
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]

@@ -1,0 +1,39 @@
+# Резервный вариант единого контейнера — БЕЗ сборки фронтенда.
+#
+# Зачем: на самых дешёвых тарифах PaaS сборка `npm ci` может не уложиться в память
+# (в логах сборки будет «Killed»). Здесь используется уже собранный и закоммиченный
+# frontend/dist, поэтому стадия Node.js не нужна вообще.
+#
+# Применение: в amvera.yaml заменить `dockerfile: Dockerfile.allinone`
+# на `dockerfile: Dockerfile.static` и запушить снова.
+#
+# Требование: frontend/dist должен быть собран актуально (`make build` или
+# `cd frontend && npm ci && npm run build`) и закоммичен.
+
+FROM python:3.12-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PORT=8000 \
+    STATIC_DIR=/app/static \
+    DATABASE_URL=sqlite:////data/credit_cabinet.db \
+    SEED_ON_START=true \
+    TIMING_PROFILE=demo \
+    DEMO_DELAY_SCALE=1.0 \
+    CORS_ORIGINS=*
+
+WORKDIR /app
+
+COPY backend/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY backend/app ./app
+COPY frontend/dist ./static
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh && mkdir -p /data
+
+EXPOSE 8000
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
