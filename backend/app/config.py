@@ -24,11 +24,28 @@ STAGE_TITLES: dict[str, str] = {
 }
 
 
+
+def _database_url() -> str:
+    """URL базы с защитой от типичных ошибок в переменной окружения.
+
+    Пустое значение → локальный файл. Голый путь (`/data/credit_cabinet.db`)
+    без схемы SQLAlchemy не принимает и падает на импорте, поэтому схему
+    достраиваем сами — приложение поднимается вместо crash-loop контейнера.
+    """
+    raw = (os.getenv("DATABASE_URL") or "").strip()
+    if not raw:
+        return "sqlite:///./data/credit_cabinet.db"
+    if "://" not in raw:
+        path = raw if raw.startswith("/") else os.path.abspath(raw)
+        return f"sqlite:///{path}"
+    return raw
+
+
 @dataclass
 class Settings:
     app_name: str = "Умный кредитный кабинет предпринимателя"
     api_prefix: str = "/api"
-    database_url: str = os.getenv("DATABASE_URL", "sqlite:///./data/credit_cabinet.db")
+    database_url: str = _database_url()
     jwt_secret: str = os.getenv("JWT_SECRET", "alfa-hack-2026-dev-secret-change-in-prod")
     jwt_algorithm: str = "HS256"
     access_token_ttl_hours: int = int(os.getenv("ACCESS_TOKEN_TTL_HOURS", "12"))

@@ -103,15 +103,63 @@ def on_startup() -> None:
 
 
 # --------------------------------------------------------------------- frontend
-if settings.static_dir and os.path.isdir(settings.static_dir):
-    assets_dir = os.path.join(settings.static_dir, "assets")
+def _resolve_static_dir() -> str | None:
+    """Каталог со собранным фронтендом.
+
+    На PaaS (Amvera и др.) рабочий каталог и путь выкладки артефактов зависят
+    от окружения, поэтому STATIC_DIR подсказывает путь, но не является
+    единственным вариантом: перебираем типовые расположения и берём первое,
+    где реально лежит index.html. Если не нашли — приложение всё равно
+    поднимается (API и /docs доступны), а в лог пишется диагностика.
+    """
+    repo_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    cwd = os.getcwd()
+    candidates = [
+        settings.static_dir,                          # как задано в окружении
+        os.path.join(repo_root, "frontend", "dist"),  # репозиторий
+        os.path.join(cwd, "frontend", "dist"),        # cwd = корень репозитория
+        "/app/frontend/dist",                         # артефакты Amvera
+        os.path.join(repo_root, "static"),            # один контейнер (Docker)
+        "/app/static",
+        os.path.join(cwd, "static"),
+    ]
+    for path in candidates:
+        if path and os.path.isfile(os.path.join(path, "index.html")):
+            logger.warning("[static] фронтенд найден: %s", path)
+            return path
+
+    logger.error(
+        "[static] собранный фронтенд не найден — API работает, SPA отдавать нечем. "
+        "cwd=%s, кандидаты=%s, содержимое cwd=%s",
+        cwd,
+        [c for c in candidates if c],
+        sorted(os.listdir(cwd))[:30] if os.path.isdir(cwd) else "—",
+    )
+    return None
+
+
+static_root = _resolve_static_dir()
+
+if static_root:
+    assets_dir = os.path.join(static_root, "assets")
     if os.path.isdir(assets_dir):
         app.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
 
     @app.get("/{full_path:path}", include_in_schema=False)
     def spa(full_path: str):
-        index = os.path.join(settings.static_dir, "index.html")
-        candidate = os.path.join(settings.static_dir, full_path)
+        index = os.path.join(static_root, "index.html")
+        candidate = os.path.join(static_root, full_path)
         if full_path and os.path.isfile(candidate):
             return FileResponse(candidate)
         return FileResponse(index)
+else:
+    @app.get("/", include_in_schema=False)
+    def root_placeholder():
+        # Заглушка вместо 404: сразу видно, что API жив, а статики нет.
+        return {
+            "status": "ok",
+            "version": "1.2.0",
+            "frontend": "not found",
+            "hint": "Собранный фронтенд не найден: проверьте STATIC_DIR или наличие frontend/dist",
+            "api_docs": "/docs",
+        }

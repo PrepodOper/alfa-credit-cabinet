@@ -1,21 +1,13 @@
-# Конфигурация Amvera Cloud (https://docs.amvera.ru/applications/configuration/config-file.html)
-#
-# Приложение разворачивается ОДНИМ контейнером: FastAPI раздаёт и API, и собранный
-# фронтенд. Поэтому вместо docker-compose.yml используется Dockerfile.allinone.
-#
-# Важные параметры:
-#   run.containerPort     — порт, который слушает uvicorn (по умолчанию Amvera ждёт 80,
-#                           а наше приложение слушает 8000 → без этой строки будет 503);
-#   run.persistenceMount  — куда монтируется папка Data; SQLite пишется в /data/credit_cabinet.db.
 meta:
-  environment: docker
+  environment: python
   toolchain:
-    name: docker
-    version: latest
+    name: pip
+    version: "3.12"
 
 build:
-  dockerfile: Dockerfile.allinone
+  requirementsPath: backend/requirements.txt
 
 run:
+  command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --app-dir backend
   persistenceMount: /data
   containerPort: 8000
