@@ -6,6 +6,7 @@ import Icon from '../components/Icons.jsx';
 import StatusPill from '../components/StatusPill.jsx';
 import ScoreRing from '../components/ScoreRing.jsx';
 import { useToast } from '../components/Toast.jsx';
+import PaymentSchedule from '../components/PaymentSchedule.jsx';
 
 const ACTIONS = [
   { key: 'approve', label: 'Одобрить', icon: 'check', tone: 'green' },
@@ -461,6 +462,8 @@ export default function BankApplication() {
               Правила и метрики конвейера <Icon name="arrowRight" size={14} />
             </button>
           </div>
+
+          <PaymentSchedule schedule={app.schedule} title="График платежей по текущим условиям" compact />
         </div>
       </div>
     </div>

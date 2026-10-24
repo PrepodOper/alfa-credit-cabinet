@@ -1,7 +1,44 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api.js';
-import { dateShort, money, moneyShort, percent } from '../lib/format.js';
+import { dateShort, dateTime, money, moneyShort, percent } from '../lib/format.js';
 import Icon from '../components/Icons.jsx';
+import Modal from '../components/Modal.jsx';
+import { useToast } from '../components/Toast.jsx';
+
+const EDIT_GROUPS = [
+  {
+    title: 'Контакты и адрес',
+    hint: 'Куда банк направляет документы и с кем согласует условия',
+    fields: [
+      { key: 'phone', label: 'Телефон', type: 'text', placeholder: '+7 999 123-45-67' },
+      { key: 'email', label: 'Email', type: 'email', placeholder: 'name@company.ru' },
+      { key: 'city', label: 'Город', type: 'text' },
+      { key: 'region', label: 'Регион', type: 'text' },
+      { key: 'address', label: 'Адрес', type: 'text', wide: true },
+      { key: 'director_name', label: 'Руководитель', type: 'text', wide: true },
+    ],
+  },
+  {
+    title: 'Деятельность',
+    hint: 'Отрасль и вид деятельности влияют на подбор продуктов',
+    fields: [
+      { key: 'industry', label: 'Отрасль', type: 'text' },
+      { key: 'employees_count', label: 'Сотрудников', type: 'number', min: 0 },
+      { key: 'okved_code', label: 'ОКВЭД', type: 'text' },
+      { key: 'okved_name', label: 'Вид деятельности', type: 'text' },
+    ],
+  },
+  {
+    title: 'Финансовые показатели',
+    hint: 'Используются в скоринге: меняют расчёт по новым заявкам, решения по уже поданным не пересматриваются',
+    fields: [
+      { key: 'revenue_avg_monthly', label: 'Выручка в месяц, ₽', type: 'number', min: 0, step: 10000 },
+      { key: 'net_profit_12m', label: 'Прибыль за 12 мес., ₽', type: 'number', step: 10000 },
+      { key: 'existing_monthly_payments', label: 'Платежи по кредитам, ₽/мес.', type: 'number', min: 0, step: 1000 },
+      { key: 'account_turnover_monthly', label: 'Обороты по счёту, ₽/мес.', type: 'number', min: 0, step: 10000 },
+    ],
+  },
+];
 
 function RevenueChart({ data = [] }) {
   if (!data.length) return null;
@@ -55,10 +92,55 @@ function CheckRow({ ok, title, detail }) {
 export default function Company() {
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
+  const [editOpen, setEditOpen] = useState(false);
+  const [form, setForm] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState('');
+  const toast = useToast();
+
+  const load = () => api('/company').then(setData).catch((e) => setError(e.message));
 
   useEffect(() => {
-    api('/company').then(setData).catch((e) => setError(e.message));
+    load();
   }, []);
+
+  const openEditor = () => {
+    const { requisites: r, financials: f } = data;
+    setForm({
+      phone: r.phone || '', email: r.email || '', city: r.city || '', region: r.region || '',
+      address: r.address || '', director_name: r.director_name || '',
+      industry: r.industry || '', okved_code: r.okved_code || '', okved_name: r.okved_name || '',
+      employees_count: r.employees_count ?? 0,
+      revenue_avg_monthly: f.revenue_avg_monthly ?? 0, net_profit_12m: f.net_profit_12m ?? 0,
+      existing_monthly_payments: f.existing_monthly_payments ?? 0,
+      account_turnover_monthly: f.account_turnover_monthly ?? 0,
+    });
+    setFormError('');
+    setEditOpen(true);
+  };
+
+  const saveProfile = async () => {
+    setSaving(true);
+    setFormError('');
+    try {
+      const body = {};
+      Object.entries(form).forEach(([key, value]) => {
+        body[key] = ['employees_count', 'revenue_avg_monthly', 'net_profit_12m',
+          'existing_monthly_payments', 'account_turnover_monthly'].includes(key)
+          ? Number(value) || 0 : value;
+      });
+      const updated = await api('/company', { method: 'PATCH', body });
+      setData(updated);
+      setEditOpen(false);
+      toast.push(updated.changed_fields?.length
+        ? `Данные сохранены: изменено полей — ${updated.changed_fields.length}`
+        : 'Изменений нет');
+    } catch (e) {
+      setFormError(e.message);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (!data) {
     return (
@@ -91,6 +173,9 @@ export default function Company() {
             </div>
           </div>
         </div>
+        <button className="btn btn-secondary btn-sm" onClick={openEditor}>
+          <Icon name="settings" size={15} /> Редактировать данные
+        </button>
       </div>
 
       <div className="grid grid-4 mt-24">
@@ -219,8 +304,85 @@ export default function Company() {
               ))}
             </div>
           </div>
+
+          <div className="card card-pad">
+            <div className="card-head">
+              <div className="card-title">История изменений</div>
+              <span className="tiny muted">кто и что менял в профиле</span>
+            </div>
+            {data.changes?.length ? (
+              <div className="mt-8">
+                {data.changes.slice(0, 8).map((c) => (
+                  <div key={c.id} style={{ padding: '9px 0', borderBottom: '1px solid var(--line-2)' }}>
+                    <div className="row-between" style={{ gap: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600 }}>{c.field_label || c.field}</span>
+                      <span className="tiny muted">{dateTime(c.created_at)}</span>
+                    </div>
+                    <div className="tiny muted" style={{ marginTop: 3 }}>
+                      {c.old_value} → <b style={{ color: 'var(--ink-2)' }}>{c.new_value}</b>
+                    </div>
+                    <div className="tiny muted" style={{ marginTop: 2 }}>{c.user_name}</div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="small muted mt-8" style={{ lineHeight: 1.5 }}>
+                Вы ещё не меняли данные компании. Все правки фиксируются в журнале —
+                это требование к аудиту кредитного процесса.
+              </p>
+            )}
+          </div>
         </div>
       </div>
+
+      {editOpen && (
+        <Modal
+          title="Данные компании"
+          subtitle="Регистрационные сведения приходят из ЕГРЮЛ и не редактируются"
+          wide
+          onClose={() => setEditOpen(false)}
+          footer={(
+            <>
+              <button className="btn btn-secondary" onClick={() => setEditOpen(false)} disabled={saving}>Отмена</button>
+              <button className="btn btn-primary" onClick={saveProfile} disabled={saving}>
+                {saving ? <span className="spinner" /> : <Icon name="check" size={16} />} Сохранить
+              </button>
+            </>
+          )}
+        >
+          {formError && <div className="banner banner-danger mb-16"><Icon name="alert" size={16} />{formError}</div>}
+          <div className="banner banner-warn mb-16">
+            <Icon name="info" size={16} />
+            <span>
+              ИНН, ОГРН, КПП, название и дата регистрации меняются только через ЕГРЮЛ.
+              Финансовые показатели влияют на скоринг новых заявок; решения по уже поданным не пересматриваются.
+            </span>
+          </div>
+          {EDIT_GROUPS.map((group) => (
+            <div key={group.title} style={{ marginBottom: 22 }}>
+              <div className="card-title" style={{ fontSize: 14 }}>{group.title}</div>
+              <div className="tiny muted" style={{ margin: '4px 0 12px' }}>{group.hint}</div>
+              <div className="grid grid-2" style={{ gap: 12 }}>
+                {group.fields.map((field) => (
+                  <div key={field.key} className="field" style={field.wide ? { gridColumn: '1 / -1' } : undefined}>
+                    <label htmlFor={`f-${field.key}`}>{field.label}</label>
+                    <input
+                      id={`f-${field.key}`}
+                      className="input"
+                      type={field.type}
+                      min={field.min}
+                      step={field.step}
+                      placeholder={field.placeholder}
+                      value={form[field.key] ?? ''}
+                      onChange={(e) => setForm((prev) => ({ ...prev, [field.key]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </Modal>
+      )}
     </div>
   );
 }

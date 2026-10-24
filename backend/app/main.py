@@ -1,4 +1,6 @@
+import logging
 import os
+from datetime import datetime, timedelta
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -10,13 +12,15 @@ from .database import Base, SessionLocal, engine
 from .routers import analytics, applications, auth, bank, company, news, products
 from .seed import seed_database
 
+logger = logging.getLogger("credit.pipeline")
+
 app = FastAPI(
     title=settings.app_name,
     description=(
         "Прототип цифрового кредитного конвейера для малого и микробизнеса: "
         "клиентский кабинет, скоринг, ручное рассмотрение и моки внешних источников."
     ),
-    version="1.0.0",
+    version="1.1.0",
 )
 
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
@@ -43,11 +47,47 @@ def health():
     return {
         "status": "ok",
         "app": settings.app_name,
-        "version": "1.0.0",
+        "version": "1.1.0",
         # Видно, что показан ускоренный демо-профиль, а не «мгновенный кредит».
         "timing_profile": settings.timing_profile,
         "auto_branch_seconds": round(settings.auto_branch_seconds * settings.demo_delay_scale, 1),
     }
+
+
+def recover_stuck_applications(older_than_minutes: int = 10) -> int:
+    """Возврат в работу заявок, застрявших в промежуточных статусах.
+
+    Причина застревания — перезапуск сервиса или падение воркера в момент прогона:
+    фоновой задачи уже нет, и без этого шага заявка молча висела бы в «Скоринге».
+    Такие заявки передаются андеррайтеру, а не теряются.
+    """
+    from .models import Application
+    from .services.pipeline import AUTO_STATUSES, hand_over_to_manual_review
+
+    db = SessionLocal()
+    recovered = 0
+    try:
+        threshold = datetime.utcnow() - timedelta(minutes=older_than_minutes)
+        stuck = (db.query(Application)
+                 .filter(Application.status.in_(tuple(AUTO_STATUSES)),
+                         Application.updated_at < threshold)
+                 .all())
+        for app in stuck:
+            hand_over_to_manual_review(
+                db, app,
+                "Обработка была прервана (перезапуск сервиса). Заявка возвращена в очередь, "
+                "чтобы клиент не ждал повторного автоматического прогона.",
+                title="Обработка прервана — заявка у андеррайтера",
+            )
+            recovered += 1
+        if recovered:
+            logger.warning("Восстановлено заявок после перезапуска: %s", recovered)
+    except Exception:  # pragma: no cover
+        db.rollback()
+        logger.exception("Не удалось восстановить застрявшие заявки")
+    finally:
+        db.close()
+    return recovered
 
 
 @app.on_event("startup")
@@ -59,6 +99,7 @@ def on_startup() -> None:
             seed_database(db)
         finally:
             db.close()
+    recover_stuck_applications()
 
 
 # --------------------------------------------------------------------- frontend

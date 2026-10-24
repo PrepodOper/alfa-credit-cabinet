@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Any, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ---------- auth ----------
@@ -202,6 +202,8 @@ class ApplicationDetailOut(ApplicationOut):
     documents: list[DocumentOut] = []
     scoring: Optional[ScoringOut] = None
     client: Optional[dict[str, Any]] = None
+    # График платежей по фактическим условиям предложения (сводка + строки).
+    schedule: Optional[dict[str, Any]] = None
 
 
 # ---------- back office ----------
@@ -268,3 +270,70 @@ class DashboardOut(BaseModel):
     active_application: Optional[ApplicationOut] = None
     recommendations: list[dict[str, Any]] = []
     credit_meter: dict[str, Any] = {}
+
+
+# ---------- company profile ----------
+class CompanyUpdate(BaseModel):
+    """Правка профиля компании клиентом.
+
+    Регистрационные данные (название, ИНН, ОГРН, КПП, дата регистрации, форма)
+    меняются только через ЕГРЮЛ и здесь недоступны — это явное ограничение модели.
+    """
+    model_config = ConfigDict(extra="forbid")
+
+    # контакты и адрес
+    phone: Optional[str] = Field(default=None, max_length=40)
+    email: Optional[str] = Field(default=None, max_length=190)
+    region: Optional[str] = Field(default=None, max_length=120)
+    city: Optional[str] = Field(default=None, max_length=120)
+    address: Optional[str] = Field(default=None, max_length=255)
+    director_name: Optional[str] = Field(default=None, max_length=190)
+
+    # деятельность
+    industry: Optional[str] = Field(default=None, max_length=120)
+    okved_code: Optional[str] = Field(default=None, max_length=20)
+    okved_name: Optional[str] = Field(default=None, max_length=255)
+    employees_count: Optional[int] = Field(default=None, ge=0, le=100_000)
+
+    # финансы (в рублях)
+    revenue_avg_monthly: Optional[float] = Field(default=None, ge=0, le=100_000_000_000)
+    revenue_12m: Optional[float] = Field(default=None, ge=0, le=1_200_000_000_000)
+    net_profit_12m: Optional[float] = Field(default=None, ge=-1_200_000_000_000, le=1_200_000_000_000)
+    existing_monthly_payments: Optional[float] = Field(default=None, ge=0, le=100_000_000_000)
+    account_turnover_monthly: Optional[float] = Field(default=None, ge=0, le=100_000_000_000)
+
+    # залог
+    collateral_available: Optional[bool] = None
+    collateral_desc: Optional[str] = Field(default=None, max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def _email_valid(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or value == "":
+            return value
+        if "@" not in value or "." not in value.split("@")[-1]:
+            raise ValueError("Некорректный email")
+        return value.strip()
+
+    @field_validator("phone")
+    @classmethod
+    def _phone_valid(cls, value: Optional[str]) -> Optional[str]:
+        if value is None or value == "":
+            return value
+        digits = sum(ch.isdigit() for ch in value)
+        if digits < 10:
+            raise ValueError("Телефон должен содержать не меньше 10 цифр")
+        return value.strip()
+
+
+class CompanyChangeOut(BaseModel):
+    id: int
+    field: str
+    field_label: str = ""
+    old_value: str = ""
+    new_value: str = ""
+    user_name: str = ""
+    created_at: datetime
+
+    class Config:
+        from_attributes = True

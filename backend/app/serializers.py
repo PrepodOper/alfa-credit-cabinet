@@ -5,6 +5,7 @@ import json
 from typing import Any
 
 from .models import Application, Company, Document, NewsItem, Product
+from .services.schedule import payment_schedule
 from .services.scoring import scoring_from_application
 from .services.workflow import PROGRESS, STATUS_LABELS, next_action
 
@@ -108,7 +109,21 @@ def application_out(app: Application, include_history: bool = False) -> dict[str
         data["events"] = [event_out(e) for e in app.events if e.visible_to_client]
         data["documents"] = [document_out(d) for d in app.documents]
         data["scoring"] = scoring_from_application(app)
+        data["schedule"] = schedule_for(app)
     return data
+
+
+def schedule_for(app: Application) -> dict[str, Any] | None:
+    """График платежей по фактическим условиям предложения.
+
+    Дата начала — день выдачи, иначе дата принятия оффера, иначе дата решения.
+    Пока предложение не сформировано, графика нет.
+    """
+    if not app.offer_amount or not app.offer_term_months:
+        return None
+    moment = app.funded_at or app.offer_accepted_at or app.decision_at
+    start = moment.date() if hasattr(moment, "date") else None
+    return payment_schedule(app.offer_amount, app.offer_rate or 0.0, app.offer_term_months, start)
 
 
 def client_snapshot(company: Company) -> dict[str, Any]:

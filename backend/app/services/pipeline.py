@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import logging
+import threading
 import time
 from datetime import datetime, timedelta
 
@@ -12,6 +14,50 @@ from ..models import Application
 from .scoring import (annuity_payment, calculate_scoring, declined_reasons, requires_manual_review,
                       scoring_to_json)
 from .workflow import add_event, move
+
+logger = logging.getLogger("credit.pipeline")
+
+# Статусы, в которых заявка ещё находится под управлением автоматического конвейера.
+AUTO_STATUSES = frozenset({"submitted", "validation", "scoring"})
+
+# Один прогон конвейера на заявку: защита от параллельного двойного запуска.
+_LOCKS: dict[int, threading.Lock] = {}
+_LOCKS_GUARD = threading.Lock()
+
+
+def application_lock(app_id: int) -> threading.Lock:
+    """Пер-заявочный замок: второй прогон по той же заявке не запускается."""
+    with _LOCKS_GUARD:
+        lock = _LOCKS.get(app_id)
+        if lock is None:
+            lock = threading.Lock()
+            _LOCKS[app_id] = lock
+        return lock
+
+
+def _still_processing(db: Session, app: Application) -> bool:
+    """Перечитать статус из БД: заявку мог забрать андеррайтер или другой прогон."""
+    db.refresh(app)
+    return app.status in AUTO_STATUSES
+
+
+def hand_over_to_manual_review(
+    db: Session,
+    app: Application,
+    reason: str,
+    *,
+    title: str = "Заявка передана на ручное рассмотрение",
+) -> None:
+    """Резервный маршрут: если автоматика не смогла довести заявку до решения,
+    она не теряется, а уходит андеррайтеру."""
+    app.required_docs_json = app.product.documents_json or "[]"
+    move(
+        db, app, "manual_review", title=title,
+        comment=reason,
+        payload={"queue_reason": "Автоматическая обработка не завершена",
+                 "score": app.score, "risk_class": app.risk_class},
+    )
+    db.commit()
 
 
 def _stage(name: str) -> None:
@@ -87,15 +133,27 @@ def process_application(db: Session, app: Application) -> Application:
 
     Шаги: проверка полноты → обогащение данными (БКИ, ЕГРЮЛ, ФНС) → скоринг →
     маршрутизация (авто-решение / ручное рассмотрение / отказ).
+
+    Функция идемпотентна: если заявку уже обработали (статус ушёл дальше
+    `scoring`) или её забрал андеррайтер, повторный прогон ничего не меняет.
     """
     from .registry import bki_snapshot, registry_snapshot
 
+    if app.status not in AUTO_STATUSES:
+        logger.info("Заявка %s уже не в автоматической обработке (%s) — прогон пропущен",
+                    app.id, app.status)
+        return app
+
     _stage("validation")
+    if not _still_processing(db, app):
+        return app
     move(db, app, "validation", title="Проверка полноты и корректности данных",
          comment="Анкета заполнена, обязательные поля и параметры продукта проверены.")
     db.commit()
 
     _stage("enrichment")
+    if not _still_processing(db, app):
+        return app
     bki = bki_snapshot(app.company)
     registry = registry_snapshot(app.company)
     add_event(
@@ -107,6 +165,8 @@ def process_application(db: Session, app: Application) -> Application:
     db.commit()
 
     _stage("scoring")
+    if not _still_processing(db, app):
+        return app
     move(db, app, "scoring", title="Скоринг и оценка кредитного риска",
          comment="Рассчитывается балльная оценка и риск-класс заявки.")
     db.commit()
@@ -127,27 +187,26 @@ def process_application(db: Session, app: Application) -> Application:
     db.commit()
 
     _stage("decision")
+    # Перед финальным решением ещё раз проверяем, что заявка всё ещё наша:
+    # иначе повторный/параллельный прогон мог бы переписать решение андеррайтера.
+    if not _still_processing(db, app):
+        return app
+
     if result["decision"] == "declined":
         decline_application(db, app, declined_reasons(result), comment=result["explanation"])
         db.commit()
         return app
 
     if requires_manual_review(result, app.amount):
-        app.required_docs_json = app.product.documents_json or "[]"
-        move(
-            db, app, "manual_review",
-            title="Заявка передана на ручное рассмотрение",
-            comment=(
-                f"Балл {result['score']}/1000, риск-класс {result['risk_class']}. "
-                "Заявка требует проверки андеррайтером: параметры или риск-профиль находятся в пограничной зоне."
-            ),
-            payload={"score": result["score"], "risk_class": result["risk_class"],
-                     "queue_reason": "Пограничный риск-класс или крупная сумма"},
+        hand_over_to_manual_review(
+            db, app,
+            f"Балл {result['score']}/1000, риск-класс {result['risk_class']}. "
+            "Заявка требует проверки андеррайтером: параметры или риск-профиль "
+            "находятся в пограничной зоне.",
         )
-        db.commit()
         return app
 
-    # Автоматическое одобрение: риск-классы A и B.
+    # Автоматическое одобрение: риск-классы A и B в пределах лимитов.
     form_offer(
         db, app,
         amount=min(app.amount, result["recommended_amount"] or app.amount),

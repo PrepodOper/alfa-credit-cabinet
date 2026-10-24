@@ -226,3 +226,19 @@ class NewsItem(Base):
     source = Column(String(120), default="Альфа-Банк")
     reading_time_min = Column(Integer, default=3)
     published_at = Column(DateTime, default=utcnow)
+
+
+class CompanyChange(Base):
+    """История изменений профиля компании клиентом (аудит редактирования данных)."""
+
+    __tablename__ = "company_changes"
+
+    id = Column(Integer, primary_key=True)
+    company_id = Column(Integer, ForeignKey("companies.id"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True)
+    user_name = Column(String(190), default="")
+    field = Column(String(60), nullable=False)
+    field_label = Column(String(120), default="")
+    old_value = Column(String(255), default="")
+    new_value = Column(String(255), default="")
+    created_at = Column(DateTime, default=utcnow)

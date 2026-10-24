@@ -6,6 +6,7 @@ import Icon from '../components/Icons.jsx';
 import StatusPill from '../components/StatusPill.jsx';
 import ScoreRing from '../components/ScoreRing.jsx';
 import Modal from '../components/Modal.jsx';
+import PaymentSchedule from '../components/PaymentSchedule.jsx';
 import { useToast } from '../components/Toast.jsx';
 
 const PROCESSING = new Set(['submitted', 'validation', 'scoring', 'manual_review', 'client_info_provided', 'offer_formed']);
@@ -53,6 +54,14 @@ export default function ApplicationDetail() {
   useEffect(() => { setApp(null); load(); }, [load]);
 
   useEffect(() => {
+    // Профиль времени конвейера: в демо этапы ускорены — показываем это явно, а не скрываем.
+    api('/health', { auth: false })
+      .then((d) => setTiming({ profile: d.timing_profile, seconds: d.auto_branch_seconds }))
+      .catch(() => {});
+  }, []);
+
+
+  useEffect(() => {
     if (!app || !PROCESSING.has(app.status)) return undefined;
     pollRef.current = window.setInterval(() => load(true), 1800);
     return () => window.clearInterval(pollRef.current);
@@ -97,13 +106,6 @@ export default function ApplicationDetail() {
   const sendInfo = () => act('info', () => api(`/applications/${app.id}/info`, {
     method: 'POST', body: { comment: infoText },
   }), 'Уточнения отправлены банку');
-
-  useEffect(() => {
-    // Профиль времени конвейера: в демо этапы ускорены — показываем это явно, а не скрываем.
-    api('/health', { auth: false })
-      .then((d) => setTiming({ profile: d.timing_profile, seconds: d.auto_branch_seconds }))
-      .catch(() => {});
-  }, []);
 
   const addDocument = () => act('doc', () => api(`/applications/${app.id}/documents`, {
     method: 'POST',
@@ -279,6 +281,8 @@ export default function ApplicationDetail() {
               )}
             </div>
           )}
+
+          <PaymentSchedule schedule={app.schedule} />
 
           {app.status === 'signing' && (
             <div className="card card-pad">

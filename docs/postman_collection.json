@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "Умный кредитный кабинет — API",
-    "description": "Коллекция запросов для проверки сквозного сценария кредитного конвейера.",
+    "description": "Коллекция запросов к API «Умного кредитного кабинета». Порядок: авторизация клиента → создание заявки → карточка и график платежей → принятие и подписание → роль андеррайтера. Переменные clientToken/bankToken/applicationId заполняются из ответов вручную или тестами.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -370,6 +370,105 @@
             }
           ]
         }
+      }
+    },
+    {
+      "name": "13 · График платежей по предложению",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{clientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/applications/{{applicationId}}/schedule",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "applications",
+            "{{applicationId}}",
+            "schedule"
+          ]
+        },
+        "description": "Аннуитетный график по фактическим условиям оферты: сводка (платёж, переплата, всего к возврату) и строки по месяцам. Доступен, когда сформировано предложение; иначе 404."
+      }
+    },
+    {
+      "name": "14 · Профиль компании (клиент)",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{clientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/company",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "company"
+          ]
+        },
+        "description": "Профиль компании: реквизиты, финансы, БКИ/ЕГРЮЛ-снимки, доступные для правки поля (`editable_fields`) и последние изменения."
+      }
+    },
+    {
+      "name": "15 · Изменить данные компании",
+      "request": {
+        "method": "PATCH",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{clientToken}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/company",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "company"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"phone\": \"+7 999 123-45-67\",\n  \"employees_count\": 14,\n  \"revenue_avg_monthly\": 2600000,\n  \"city\": \"Санкт-Петербург\"\n}"
+        },
+        "description": "Правка контактов, деятельности и финансов. Регистрационные данные (ИНН, ОГРН, КПП, название, дата регистрации) менять нельзя — они приходят из ЕГРЮЛ, запрос вернёт 422. Каждое изменение пишется в журнал; в ответе — `changed_fields`."
+      }
+    },
+    {
+      "name": "16 · История изменений компании",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{clientToken}}"
+          }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/company/changes",
+          "host": [
+            "{{baseUrl}}"
+          ],
+          "path": [
+            "company",
+            "changes"
+          ]
+        },
+        "description": "Журнал правок профиля: поле, старое и новое значение, кто и когда изменил."
       }
     }
   ]

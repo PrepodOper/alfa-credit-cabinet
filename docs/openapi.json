@@ -3,7 +3,7 @@
   "info": {
     "title": "Умный кредитный кабинет предпринимателя",
     "description": "Прототип цифрового кредитного конвейера для малого и микробизнеса: клиентский кабинет, скоринг, ручное рассмотрение и моки внешних источников.",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "paths": {
     "/api/auth/login": {
@@ -382,6 +382,52 @@
                 "schema": {
                   "$ref": "#/components/schemas/ApplicationDetailOut"
                 }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/applications/{app_id}/schedule": {
+      "get": {
+        "tags": [
+          "applications"
+        ],
+        "summary": "Application Schedule",
+        "description": "График платежей по фактическим условиям предложения.",
+        "operationId": "application_schedule_api_applications__app_id__schedule_get",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "app_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "App Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
               }
             }
           },
@@ -935,6 +981,73 @@
             "HTTPBearer": []
           }
         ]
+      },
+      "patch": {
+        "tags": [
+          "company"
+        ],
+        "summary": "Update Company",
+        "description": "Правка профиля компании клиентом.\n\nФинансовые показатели влияют на скоринг, поэтому после изменения данных\nновые заявки оцениваются по обновлённым значениям; уже поданные заявки\nне пересчитываются — их решение зафиксировано в журнале событий.",
+        "operationId": "update_company_api_company_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompanyUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
+      }
+    },
+    "/api/company/changes": {
+      "get": {
+        "tags": [
+          "company"
+        ],
+        "summary": "Company Changes",
+        "operationId": "company_changes_api_company_changes_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/api/health": {
@@ -1212,6 +1325,18 @@
               }
             ],
             "title": "Client"
+          },
+          "schedule": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Schedule"
           }
         },
         "type": "object",
@@ -1626,6 +1751,223 @@
           "name"
         ],
         "title": "CompanyBrief"
+      },
+      "CompanyUpdate": {
+        "properties": {
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 190
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "address": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "director_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 190
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Director Name"
+          },
+          "industry": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Industry"
+          },
+          "okved_code": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 20
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Okved Code"
+          },
+          "okved_name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Okved Name"
+          },
+          "employees_count": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Count"
+          },
+          "revenue_avg_monthly": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100000000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue Avg Monthly"
+          },
+          "revenue_12m": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1200000000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revenue 12M"
+          },
+          "net_profit_12m": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1200000000000.0,
+                "minimum": -1200000000000.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Net Profit 12M"
+          },
+          "existing_monthly_payments": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100000000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Existing Monthly Payments"
+          },
+          "account_turnover_monthly": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100000000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Account Turnover Monthly"
+          },
+          "collateral_available": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collateral Available"
+          },
+          "collateral_desc": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Collateral Desc"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CompanyUpdate",
+        "description": "Правка профиля компании клиентом.\n\nРегистрационные данные (название, ИНН, ОГРН, КПП, дата регистрации, форма)\nменяются только через ЕГРЮЛ и здесь недоступны — это явное ограничение модели."
       },
       "DashboardOut": {
         "properties": {

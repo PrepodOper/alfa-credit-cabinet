@@ -1,4 +1,5 @@
 import json
+import logging
 import random
 from datetime import datetime
 
@@ -11,8 +12,12 @@ from ..schemas import (ApplicationCreate, ApplicationDetailOut, ApplicationOut, 
                        DocumentOut, InfoProvideRequest, OfferAcceptRequest)
 from ..security import require_role
 from ..serializers import application_out, document_out, offer_payload
-from ..services.pipeline import decline_application, process_application
+from ..services.pipeline import (AUTO_STATUSES, application_lock, decline_application,
+                                 hand_over_to_manual_review, process_application)
+from ..services.schedule import payment_schedule
 from ..services.workflow import STATUS_LABELS, add_event, move
+
+logger = logging.getLogger("credit.pipeline")
 
 router = APIRouter(prefix="/applications", tags=["applications"])
 
@@ -46,13 +51,51 @@ def _expire_if_needed(db: Session, app: Application) -> None:
 
 
 def run_pipeline(app_id: int) -> None:
+    """Фоновый прогон конвейера.
+
+    Гарантии:
+    - на одну заявку одновременно работает только один прогон (пер-заявочный замок);
+    - повторный прогон по уже обработанной заявке — no-op (проверка статуса внутри);
+    - если автоматика упала, заявка НЕ зависает: она уходит андеррайтеру с описанием
+      причины, поэтому «пропавших» заявок в очереди не бывает.
+    """
+    lock = application_lock(app_id)
+    if not lock.acquire(blocking=False):
+        # Параллельный прогон этой же заявки уже идёт — второй не нужен.
+        return
     db = SessionLocal()
     try:
         app = db.get(Application, app_id)
-        if app and app.status == "submitted":
+        if app and app.status in AUTO_STATUSES:
             process_application(db, app)
-    except Exception:  # pragma: no cover - защита от падения фоновой задачи
+    except Exception as exc:  # pragma: no cover - защита от падения фоновой задачи
         db.rollback()
+        logger.exception("Конвейер не смог обработать заявку %s", app_id)
+        _fallback_to_manual_review(app_id, exc)
+    finally:
+        db.close()
+        lock.release()
+
+
+def _fallback_to_manual_review(app_id: int, exc: Exception) -> None:
+    """Технический сбой конвейера → ручное рассмотрение вместо «потерянной» заявки."""
+    db = SessionLocal()
+    try:
+        app = db.get(Application, app_id)
+        if app is None or app.status not in AUTO_STATUSES:
+            return
+        reason = (
+            "Автоматическая обработка не завершилась (техническая ошибка конвейера). "
+            "Заявка передана андеррайтеру, чтобы клиент не ждал повторного прогона. "
+            f"Детали для поддержки: {type(exc).__name__}: {str(exc)[:200]}"
+        )
+        hand_over_to_manual_review(
+            db, app, reason,
+            title="Автоматическая проверка прервана — заявка у андеррайтера",
+        )
+    except Exception:  # pragma: no cover - последний рубеж
+        db.rollback()
+        logger.exception("Не удалось передать заявку %s в ручное рассмотрение", app_id)
     finally:
         db.close()
 
@@ -130,14 +173,37 @@ def submit_application(app_id: int, background: BackgroundTasks,
     app = _get_client_app(db, user, app_id)
     if app.status != "draft":
         raise HTTPException(status_code=409, detail="Отправить можно только черновик заявки")
-    app.status = "submitted"
-    app.submitted_at = datetime.utcnow()
+    # Атомарный переход draft → submitted: двойной клик или повтор запроса
+    # не создадут второй прогон конвейера по той же заявке.
+    now = datetime.utcnow()
+    updated = (db.query(Application)
+               .filter(Application.id == app.id, Application.status == "draft")
+               .update({"status": "submitted", "submitted_at": now, "updated_at": now},
+                       synchronize_session=False))
+    if not updated:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Заявка уже отправлена")
+    db.commit()
+    db.refresh(app)
     add_event(db, app, event_type="status_change", title="Заявка отправлена в банк",
               from_status="draft", to_status="submitted", actor_type="client", actor_name=user.full_name)
     db.commit()
     background.add_task(run_pipeline, app.id)
     db.refresh(app)
     return ApplicationDetailOut(**application_out(app, include_history=True))
+
+
+@router.get("/{app_id}/schedule")
+def application_schedule(app_id: int, user: User = Depends(require_role("client")),
+                         db: Session = Depends(get_db)):
+    """График платежей по фактическим условиям предложения."""
+    app = _get_client_app(db, user, app_id)
+    if not app.offer_amount or not app.offer_term_months:
+        raise HTTPException(status_code=404, detail="График появится после формирования предложения")
+    moment = app.funded_at or app.offer_accepted_at or app.decision_at
+    start = moment.date() if moment else None
+    data = payment_schedule(app.offer_amount, app.offer_rate or 0.0, app.offer_term_months, start)
+    return {"application_id": app.id, "number": app.number, **data}
 
 
 @router.post("/{app_id}/offer/accept", response_model=ApplicationDetailOut)
