@@ -1,8 +1,8 @@
 # Версия для проверки
 
-- **Тег:** `v1.1.0` (предыдущий — `v1.0.0`, история сохранена)
-- **Commit hash на момент сдачи:** текущий HEAD тега `v1.1.0`
-  (`git rev-parse v1.1.0` / `git log -1 --format=%H`)
+- **Тег:** `v1.2.0` (предыдущие — `v1.1.0`, `v1.0.0`, история сохранена)
+- **Commit hash на момент сдачи:** текущий HEAD тега `v1.2.0`
+  (`git rev-parse v1.2.0` / `git log -1 --format=%H`)
 - **Ветка:** `master`
 - **Дата фиксации:** 19.10.2026
 
@@ -12,6 +12,7 @@
 |---|---|
 | Backend (FastAPI) | `backend/` |
 | Frontend (React + Vite) | `frontend/` |
+| Собранный фронтенд (для запуска без Node.js) | `frontend/dist/` — включён в репозиторий |
 | Docker-конфигурация | `docker-compose.yml`, `backend/Dockerfile`, `frontend/Dockerfile`, `frontend/nginx.conf` |
 | Документация | `docs/` |
 | OpenAPI | `docs/openapi.json` |
@@ -20,6 +21,16 @@
 | Профили времени конвейера | `docs/08-timings.md`, `TIMING_PROFILE` в `.env.example` |
 | Сторонние компоненты | `THIRD_PARTY_NOTICES.md` |
 | Тестовые данные и демо-сценарий | `backend/app/seed.py`, `tools/seed_demo.py` |
+
+## Что изменилось в v1.2.0
+
+- **Облачная публикация:** `Dockerfile.allinone` (один контейнер: FastAPI + собранный фронтенд),
+  `Dockerfile.static` (вариант без Node), `amvera.yaml`, `docker-entrypoint.sh`,
+  `.dockerignore`, инструкция `РАЗВЁРТЫВАНИЕ_AMVERA.md`.
+- **Постоянное хранилище:** SQLite в `/data/credit_cabinet.db`, данные переживают перезапуск
+  и пересборку; путь проверяется при старте контейнера.
+- Порт приложения берётся из переменной `PORT` (PaaS передают её сами), поддержаны
+  `--proxy-headers` для работы за reverse-proxy платформы.
 
 ## Что изменилось в v1.1.0
 

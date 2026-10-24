@@ -20,7 +20,7 @@ app = FastAPI(
         "Прототип цифрового кредитного конвейера для малого и микробизнеса: "
         "клиентский кабинет, скоринг, ручное рассмотрение и моки внешних источников."
     ),
-    version="1.1.0",
+    version="1.2.0",
 )
 
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
@@ -47,7 +47,7 @@ def health():
     return {
         "status": "ok",
         "app": settings.app_name,
-        "version": "1.1.0",
+        "version": "1.2.0",
         # Видно, что показан ускоренный демо-профиль, а не «мгновенный кредит».
         "timing_profile": settings.timing_profile,
         "auto_branch_seconds": round(settings.auto_branch_seconds * settings.demo_delay_scale, 1),

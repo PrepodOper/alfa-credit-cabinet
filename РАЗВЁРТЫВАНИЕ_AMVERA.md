@@ -1,7 +1,9 @@
 # Развёртывание на Amvera Cloud
 
 Пошаговая инструкция: как поднять этот проект на российском PaaS [amvera.ru](https://amvera.ru)
-и получить публичную ссылку вида `https://alfa-credit-cabinet-вашлогин.amvera.io`.
+и получить публичную ссылку вида `https://<проект>-<логин>.msk1.amvera.tech`.
+
+Рабочий пример этого проекта: **<https://alfacreditcabinet-operprepod.msk1.amvera.tech>**.
 
 В репозитории уже лежит всё необходимое:
 
@@ -65,7 +67,7 @@ cd C:\Users\DENYA228\Desktop\alfa-credit-cabinet
 ```
 
 ```cmd
-git remote add amvera https://git.amvera.ru/ВАШ_ЛОГИН/alfa-credit-cabinet
+git remote add amvera https://git.msk0.amvera.ru/ВАШ_ЛОГИН/ИМЯ_ПРОЕКТА
 ```
 
 Проверьте, что remote добавился (должны быть и `origin` для GitHub, и `amvera`):
@@ -133,16 +135,16 @@ Git спросит логин и пароль — это **учётная зап
 3. Ссылка будет вида:
 
 ```
-https://alfa-credit-cabinet-ВАШ_ЛОГИН.amvera.io
+https://ИМЯ_ПРОЕКТА-ВАШ_ЛОГИН.msk1.amvera.tech
 ```
 
 HTTPS-сертификат Amvera выпускает сама — ничего настраивать не нужно.
 
 Проверьте:
 
-- `https://…amvera.io/api/health` → `{"status":"ok", ..., "timing_profile":"demo", "auto_branch_seconds":1.9}`
-- `https://…amvera.io/` → страница входа
-- `https://…amvera.io/docs` → Swagger
+- `https://…msk1.amvera.tech/api/health` → `{"status":"ok", ..., "timing_profile":"demo", "auto_branch_seconds":1.9}`
+- `https://…msk1.amvera.tech/` → страница входа
+- `https://…msk1.amvera.tech/docs` → Swagger
 
 ---
 
@@ -230,7 +232,7 @@ git push amvera master
    и `TXT` для подтверждения владения).
 3. Дождитесь выпуска сертификата (несколько минут). DNS может обновляться до пары часов.
 
-Для конкурса достаточно бесплатного домена `*.amvera.io` — он выглядит нормально и работает по HTTPS.
+Для конкурса достаточно бесплатного домена `*.msk1.amvera.tech` — он выглядит нормально и работает по HTTPS.
 
 ---
 

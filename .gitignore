@@ -3,7 +3,9 @@ __pycache__/
 .pytest_cache/
 .venv/
 node_modules/
-frontend/dist/
+# frontend/dist НЕ игнорируется: собранный фронтенд лежит в репозитории,
+# чтобы судьи могли запустить ./start.sh сразу после клонирования, без Node.js.
+# Пересобрать: make build (или cd frontend && npm ci && npm run build)
 backend/data/
 data/*.db
 data/*.db-wal

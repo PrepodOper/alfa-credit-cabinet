@@ -7,6 +7,27 @@
 Кейс: Альфа-Хак × Альфа-Банк, 2026. Все данные синтетические, интеграции с БКИ/ЕГРЮЛ/ФНС
 смоделированы локальными моками.
 
+## Живая демонстрация
+
+| Что | Адрес |
+|---|---|
+| Приложение | <https://alfacreditcabinet-operprepod.msk1.amvera.tech> |
+| Swagger / OpenAPI | <https://alfacreditcabinet-operprepod.msk1.amvera.tech/docs> |
+| Проверка состояния | <https://alfacreditcabinet-operprepod.msk1.amvera.tech/api/health> |
+
+Тестовые учётные записи (пароль у всех — `demo1234`):
+
+| Роль | Логин |
+|---|---|
+| Клиент — ООО «Весна» | `ivan@vesna.ru` |
+| Клиент — ИП Строймастер | `petr@stroymaster.ru` |
+| Клиент — ООО «ТехноПарк» | `anna@tehnopark.ru` |
+| Андеррайтер банка | `underwriter@alfabank.ru` |
+| Менеджер банка | `manager@alfabank.ru` |
+
+Развёртывание в облаке: один контейнер (FastAPI раздаёт API и собранный фронтенд), SQLite в
+постоянном хранилище `/data`. Подробности — в [РАЗВЁРТЫВАНИЕ_AMVERA.md](РАЗВЁРТЫВАНИЕ_AMVERA.md).
+
 ![Обзор кабинета предпринимателя](docs/img/dashboard.png)
 
 ---
@@ -41,6 +62,9 @@
 
 > Нужна пошаговая инструкция «для чайников» с разбором ошибок —
 > см. **[КАК_ЗАПУСТИТЬ.md](КАК_ЗАПУСТИТЬ.md)**. Ниже — краткая версия.
+>
+> Сдаёте решение на конкурс — пошаговый чек-лист выкладки на GitHub:
+> **[КАК_СДАТЬ_НА_КОНКУРС.md](КАК_СДАТЬ_НА_КОНКУРС.md)**.
 
 ## Быстрый старт
 
@@ -59,6 +83,11 @@ docker compose up --build
 пользователи и новости; повторный запуск данные не дублирует.
 
 ### Вариант A2. Один процесс (без Docker и Node.js)
+
+> Собранный фронтенд (`frontend/dist`) лежит в репозитории, поэтому клон запускается сразу.
+> После правок в `frontend/src` пересоберите: `make build`. Docker собирает его сам при `up --build`.
+
+
 
 ```bash
 ./start.sh      # Linux/macOS
@@ -111,6 +140,26 @@ python3 tools/seed_demo.py --base http://localhost:8000/api
 Полезные команды собраны в `Makefile`: `make up`, `make test`, `make seed`, `make dev-backend`.
 
 ---
+
+## Публикация в облаке (Amvera, Render, Koyeb)
+
+Для PaaS-хостингов, которые поднимают **один** контейнер, в репозитории есть
+`Dockerfile.allinone` (FastAPI раздаёт и API, и собранный фронтенд) и готовая конфигурация
+`amvera.yaml`. Пошаговая инструкция для Amvera Cloud — **[РАЗВЁРТЫВАНИЕ_AMVERA.md](РАЗВЁРТЫВАНИЕ_AMVERA.md)**:
+
+```bash
+git remote add amvera https://git.msk0.amvera.ru/<логин>/<проект>
+git push amvera main:master   # → https://<проект>-<логин>.msk1.amvera.tech
+```
+
+Локальная проверка того же образа:
+
+```bash
+docker build -f Dockerfile.allinone -t alfa-credit-cabinet .
+docker run -p 8000:8000 -v alfa_data:/data alfa-credit-cabinet
+```
+
+База в облаке живёт в постоянном хранилище: `/data/credit_cabinet.db` (`persistenceMount: /data`).
 
 ## Тестовые учётные записи
 
